@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Course Planner (Fixed Login)</title>
+  <style>
+    body { font-family: Arial, sans-serif; background:#f5f5f5; margin:0; padding:20px; }
+    #login, #app { max-width: 1000px; margin:auto; }
+    .grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:15px; }
+    .course { background:#fff; padding:10px; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.1); }
+    .tasks { min-height:60px; }
+    .task { background:#e3e3ff; padding:5px; margin-bottom:5px; border-radius:4px; cursor:grab; display:flex; align-items:center; gap:6px; }
+    button { cursor:pointer; }
+  </style>
+</head>
+<body>
+
+<div id="login">
+  <h2>Login</h2>
+  <input id="username" placeholder="Enter username" />
+  <button id="loginBtn">Login</button>
+  <p id="error" style="color:red;"></p>
+</div>
+
+<div id="app" style="display:none;">
+  <h2 id="welcome"></h2>
+  <button onclick="logout()">Logout</button>
+  <div class="grid" id="courses"></div>
+</div>
+
+<script>
+let user = null;
+
+// 🔹 SAFE LOGIN (no auto-start, no race conditions)
+document.getElementById('loginBtn').onclick = login;
+
+document.getElementById('username').addEventListener('keydown', e => {
+  if (e.key === 'Enter') login();
+});
+
+function login(){
+  const input = document.getElementById('username');
+  const err = document.getElementById('error');
+  const u = input.value.trim();
+
+  err.innerText = '';
+  if(!u){ err.innerText = 'Username required'; return; }
+
+  user = u;
+
+  if(!localStorage.getItem(user)){
+    const data = Array.from({length:8},(_,i)=>({name:`Course ${i+1}`,tasks:[]}));
+    localStorage.setItem(user, JSON.stringify(data));
+  }
+
+  document.getElementById('login').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('welcome').innerText = 'Welcome, ' + user;
+
+  render();
+}
+
+function logout(){
+  user = null;
+  location.reload();
+}
+
+function render(){
+  const data = JSON.parse(localStorage.getItem(user));
+  const c = document.getElementById('courses');
+  c.innerHTML='';
+
+  data.forEach((course,ci)=>{
+    const div = document.createElement('div');
+    div.className='course';
+    div.innerHTML = `
+      <input value="${course.name}" onchange="rename(${ci},this.value)" />
+      <div class="tasks" ondragover="event.preventDefault()" ondrop="drop(event,${ci})"></div>
+      <input placeholder="New task" id="t${ci}" />
+      <button onclick="addTask(${ci})">Add</button>`;
+
+    const taskBox = div.querySelector('.tasks');
+    course.tasks.forEach((t,ti)=>{
+      const td = document.createElement('div');
+      td.className='task';
+      td.draggable=true;
+      td.ondragstart=e=>e.dataTransfer.setData('text',JSON.stringify({ci,ti}));
+      td.innerHTML = `
+        <input type="checkbox" ${t.done?'checked':''} onchange="toggle(${ci},${ti})" />
+        <span ondblclick="editTask(${ci},${ti})">${t.text}</span>
+        <button onclick="deleteTask(${ci},${ti})">✖</button>`;
+      taskBox.appendChild(td);
+    });
+
+    c.appendChild(div);
+  });
+}
+
+function save(d){ localStorage.setItem(user, JSON.stringify(d)); render(); }
+function rename(ci,v){ const d=JSON.parse(localStorage.getItem(user)); d[ci].name=v; save(d); }
+function addTask(ci){ const d=JSON.parse(localStorage.getItem(user)); const i=document.getElementById('t'+ci); if(!i.value) return; d[ci].tasks.push({text:i.value,done:false}); i.value=''; save(d); }
+function toggle(ci,ti){ const d=JSON.parse(localStorage.getItem(user)); d[ci].tasks[ti].done=!d[ci].tasks[ti].done; save(d); }
+function editTask(ci,ti){ const d=JSON.parse(localStorage.getItem(user)); const n=prompt('Edit task',d[ci].tasks[ti].text); if(n) { d[ci].tasks[ti].text=n; save(d);} }
+function deleteTask(ci,ti){ const d=JSON.parse(localStorage.getItem(user)); d[ci].tasks.splice(ti,1); save(d); }
+function drop(e,targetCi){ const {ci,ti}=JSON.parse(e.dataTransfer.getData('text')); const d=JSON.parse(localStorage.getItem(user)); const task=d[ci].tasks.splice(ti,1)[0]; d[targetCi].tasks.push(task); save(d); }
+</script>
+</body>
+</html>
